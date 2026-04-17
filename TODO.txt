@@ -1,0 +1,8 @@
+- [ ] Speicherung der Daten auf der SD Karte
+    - [ ] Wenn die Datei noch nich exisitert, Erstelle sie mit den Passenden Headern
+    - [ ] File Rotation jede woche oder so 
+- [ ] Speichern des BME Zustands auf dem EEProm
+- [ ] Display
+- [ ] Regensensor
+- [ ] Licht sensor
+- [ ] Batterie Monitor

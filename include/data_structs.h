@@ -14,18 +14,26 @@ struct sensor_data {
 
     float iaq; // 0-500
     int iaq_accuracy;
+    int light_level;
 
-    int timestamp; // Unix timestamp, when the first measurement was created
+    bool is_raining;
+    int raing_voltage;
+
+    int64_t timestamp; // Unix timestamp, when the first measurement was created
 
     bool bme680_run_in;
 
 };
 
 struct system_status {
-    bool sd_card; // true if an sdcard is pressent
+    bool sd_card_avalible; // true if an sdcard is pressent
     bool is_charing;
+    bool display_active; // if the display is currently beeing used
+    bool display_avalible; // if the display is connected
+    bool rtc_avalible;
     float battery_percentage;
-    float battery_voltage;
+    float battery_milli_volts_adc;
+    float battery_milli_volts_analog;
 }; 
 
 #endif
