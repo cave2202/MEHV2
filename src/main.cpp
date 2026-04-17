@@ -89,7 +89,7 @@ void print_sensor_data(const sensor_data& data) {
     Serial.println("===================");
 }
 
-void bsec_data_callback(const bme68x_data data, const bsec_outputs outputs, Bsec2 bsec) {
+void bsec_data_callback(const bme68x_data data, const bsecOutputs outputs, Bsec2 bsec) {
     if (!outputs.nOutputs) return;
 
     global_sensor_data.timestamp = (int64_t)time(nullptr);
@@ -149,7 +149,7 @@ void bsec_data_callback(const bme68x_data data, const bsec_outputs outputs, Bsec
 
     if (!global_system_status.display_active) {
         go_to_sleep();
-    } 
+    }
 }
 
 void checkBsecStatus(Bsec2 bsec) {
