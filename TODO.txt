@@ -1,8 +1,10 @@
-- [ ] Speicherung der Daten auf der SD Karte
-    - [ ] Wenn die Datei noch nich exisitert, Erstelle sie mit den Passenden Headern
-    - [ ] File Rotation jede woche oder so 
-- [ ] Speichern des BME Zustands auf dem EEProm
+- [x] Speicherung der Daten auf der SD Karte
+    - [x] Wenn die Datei noch nich exisitert, Erstelle sie mit den Passenden Headern
+- [x] Speichern des BME Zustands auf dem EEProm
 - [ ] Display
-- [ ] Regensensor
+- [x] Regensensor
 - [ ] Licht sensor
 - [ ] Batterie Monitor
+- [ ] Schaltplan Überarbeiten
+- [ ] Readme Schreiben
+    - [ ] Problem mit IntelHex Python Modul beschreiben
