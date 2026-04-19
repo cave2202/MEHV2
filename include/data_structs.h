@@ -32,8 +32,9 @@ struct system_status {
     bool display_avalible; // if the display is connected
     bool rtc_avalible;
     float battery_percentage;
-    float battery_milli_volts_adc;
-    float battery_milli_volts_analog;
+    float battery_milli_volts;
+    bool in_ulp_mode;
+    bool burn_in_mode;
 }; 
 
 #endif

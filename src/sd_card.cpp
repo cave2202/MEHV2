@@ -159,7 +159,7 @@ void write_sensor_data_to_csv(fs::FS& fs, sensor_data* sensor_data, system_statu
         appendFile(fs, file,
                    "timestamp,raw_temp,raw_humidity,raw_pressure,"
                    "c_temp,c_humidity,co2,bvoc,iaq,light_level,is_raining,rain_voltage"
-                   "bme680_run_in,battery_mv\n");
+                   "bme680_run_in,battery_mv,battery_persantage\n");
     }
 
     String line = (String)sensor_data->timestamp + "," +
@@ -176,7 +176,9 @@ void write_sensor_data_to_csv(fs::FS& fs, sensor_data* sensor_data, system_statu
                   (String)sensor_data->raing_voltage + "," +
 
                   (String)sensor_data->bme680_run_in + "," +
-                  (String)system_data->battery_milli_volts_analog + "\n";
+                  (String)system_data->battery_milli_volts + "\n";
+                  (String)system_data->battery_percentage + "\n";
 
     appendFile(fs, file, line.c_str());
 }
+
