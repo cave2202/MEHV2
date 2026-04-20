@@ -1,15 +1,15 @@
-#include <Adafruit_GFX.h>
-#include <Adafruit_SH110X.h>
+#include <Adafruit_GFX.h>     // Graphics Lib
+#include <Adafruit_SH110X.h>  // Diplay Driver
 #include <Arduino.h>
-#include <FS.h>
-#include <RTClib.h>
-#include <SD.h>
-#include <SPI.h>
-#include <Wire.h>
-#include <bsec2.h>
+#include <FS.h>      // File system
+#include <RTClib.h>  // RTC Driver
+#include <SD.h>      // SD-Card Driver
+#include <SPI.h>     // SPI-Driver
+#include <Wire.h>    // I2C Driver
+#include <bsec2.h>   // BME680 Driver
 
 #include "data_structs.h"
-#include "driver/rtc_io.h"
+#include "driver/rtc_io.h"  // For controlling pullups during deepsleep
 #include "sd_card.h"
 
 #define SCREEN_WIDTH 128
@@ -38,11 +38,27 @@
 
 #define BME680_I2C_ADDR BME68X_I2C_ADDR_HIGH
 
+enum ui_screen_t {
+    SCREEN_DASHBOARD,
+    SCREEN_SETTINGS,
+    SCREEN_DETAILS,
+};
+
 bool in_ulp_mode = false;
 
 int TIME_TO_SLEEP = 3;
 
 bool burn_in_mode = true;
+
+volatile bool display_timer_fired = false;
+volatile bool back_btn_pressed = false;
+
+volatile bool up_btn_pressed = false;
+volatile bool down_btn_pressed = false;
+
+RTC_DATA_ATTR ui_screen_t current_screen = SCREEN_DASHBOARD;
+
+hw_timer_t* display_timer = NULL;
 
 Adafruit_SH1106G display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire);
 
@@ -72,26 +88,6 @@ RTC_DATA_ATTR uint8_t bsecState[BSEC_MAX_STATE_BLOB_SIZE];
 RTC_DATA_ATTR bool hasBsecState = false;
 RTC_DATA_ATTR int bootCount = 0;
 
-enum ui_screen_t {
-    SCREEN_DASHBOARD,
-    SCREEN_SETTINGS,
-    SCREEN_DETAILS,
-    // add more as needed
-};
-
-RTC_DATA_ATTR ui_screen_t current_screen = SCREEN_DASHBOARD;
-
-hw_timer_t* display_timer = NULL;
-volatile bool display_timer_fired = false;
-volatile bool back_btn_pressed = false;
-
-void debug_battery() {
-    Serial.printf("Raw analogRead(34): %d\n", analogRead(34));
-    Serial.printf("Raw analogRead(35): %d\n", analogRead(35));
-    Serial.printf("Raw analogRead(32): %d\n", analogRead(32));
-    Serial.printf("Raw analogRead(33): %d\n", analogRead(33));
-}
-
 void IRAM_ATTR on_display_timer() {
     display_timer_fired = true;
 }
@@ -105,9 +101,6 @@ void IRAM_ATTR on_back_btn_pressed() {
     back_btn_pressed = true;
     Serial.println("BACK");
 }
-
-volatile bool up_btn_pressed = false;
-volatile bool down_btn_pressed = false;
 
 void IRAM_ATTR on_up_btn_pressed() {
     static unsigned long lastPress = 0;
@@ -125,6 +118,32 @@ void IRAM_ATTR on_down_btn_pressed() {
     lastPress = now;
     down_btn_pressed = true;
     Serial.println("DOWN");
+}
+
+void print_sensor_data(const sensor_data& data) {
+    Serial.println("=== Sensor Data ===");
+    Serial.printf("  Timestamp     : %lld\n", data.timestamp);
+    Serial.printf("  Raw Temp      : %.2f °C\n", data.raw_temperature);
+    Serial.printf("  Raw Humidity  : %.2f %%\n", data.raw_humidity);
+    Serial.printf("  Raw Pressure  : %.2f hPa\n", data.raw_pressure);
+    Serial.printf("  Comp Temp     : %.2f °C\n", data.c_temperature);
+    Serial.printf("  Comp Humidity : %.2f %%\n", data.c_humidity);
+    Serial.printf("  CO2 equiv     : %.1f ppm\n", data.co2_equivalent);
+    Serial.printf("  bVOC equiv    : %.2f ppm\n", data.bVoc);
+    Serial.printf("  IAQ           : %.1f  (accuracy %d/3)\n", data.iaq, data.iaq_accuracy);
+    Serial.printf("  Light level   : %d\n", data.light_level);
+    Serial.printf("  BME680 run-in : %s\n", data.bme680_run_in ? "done" : "in progress");
+    Serial.printf("  Is Raining : %s\n", data.is_raining ? "yes" : "no");
+    Serial.printf("  Rain Voltage   : %d\n", data.raing_voltage);
+
+    Serial.println("===================");
+}
+
+void print_system_status(const system_status& status) {
+    Serial.println("=== System Status ===");
+    Serial.printf("  SAMPLE MODE   : %s\n", status.in_ulp_mode ? "ULP" : "LP");
+    Serial.printf("  BURN IN MODE:   : %s\n", status.burn_in_mode ? "YES" : "NO");
+    Serial.println("===================");
 }
 
 void draw_ui() {
@@ -181,7 +200,7 @@ void handle_ui() {
         back_btn_pressed = false;
         timerRestart(display_timer);
         timerAlarmEnable(display_timer);
-        current_screen = SCREEN_DASHBOARD;  // back always goes to dashboard
+        current_screen = SCREEN_DASHBOARD;
         changed = true;
     }
 
@@ -215,45 +234,17 @@ void go_to_sleep() {
         display.oled_command(SH110X_DISPLAYOFF);
     }
 
-    while (digitalRead(BACK_BTN_PIN) == LOW) {
-        delay(10);
-    }
     delay(100);
 
     rtc_gpio_init(gpio_num_t(BACK_BTN_PIN));
     rtc_gpio_set_direction(gpio_num_t(BACK_BTN_PIN), RTC_GPIO_MODE_INPUT_ONLY);
-    rtc_gpio_pulldown_dis(gpio_num_t(BACK_BTN_PIN));  // disable pulldown
-    rtc_gpio_pullup_en(gpio_num_t(BACK_BTN_PIN));     // enable pullup
+    rtc_gpio_pulldown_dis(gpio_num_t(BACK_BTN_PIN));
+    rtc_gpio_pullup_en(gpio_num_t(BACK_BTN_PIN));
 
     esp_sleep_enable_ext0_wakeup(gpio_num_t(BACK_BTN_PIN), 0);
     esp_sleep_enable_timer_wakeup(SLEEP_DURATION_US);
 
     esp_deep_sleep_start();
-}
-void print_sensor_data(const sensor_data& data) {
-    Serial.println("=== Sensor Data ===");
-    Serial.printf("  Timestamp     : %lld\n", data.timestamp);
-    Serial.printf("  Raw Temp      : %.2f °C\n", data.raw_temperature);
-    Serial.printf("  Raw Humidity  : %.2f %%\n", data.raw_humidity);
-    Serial.printf("  Raw Pressure  : %.2f hPa\n", data.raw_pressure);
-    Serial.printf("  Comp Temp     : %.2f °C\n", data.c_temperature);
-    Serial.printf("  Comp Humidity : %.2f %%\n", data.c_humidity);
-    Serial.printf("  CO2 equiv     : %.1f ppm\n", data.co2_equivalent);
-    Serial.printf("  bVOC equiv    : %.2f ppm\n", data.bVoc);
-    Serial.printf("  IAQ           : %.1f  (accuracy %d/3)\n", data.iaq, data.iaq_accuracy);
-    Serial.printf("  Light level   : %d\n", data.light_level);
-    Serial.printf("  BME680 run-in : %s\n", data.bme680_run_in ? "done" : "in progress");
-    Serial.printf("  Is Raining : %s\n", data.is_raining ? "yes" : "no");
-    Serial.printf("  Rain Voltage   : %d\n", data.raing_voltage);
-
-
-    Serial.println("===================");
-}
-void print_system_status(const system_status& status) {
-    Serial.println("=== System Status ===");
-    Serial.printf("  SAMPLE MODE   : %s\n", status.in_ulp_mode ? "ULP": "LP");
-    Serial.printf("  BURN IN MODE:   : %s\n", status.burn_in_mode ? "YES" : "NO");
-    Serial.println("===================");
 }
 
 void bsec_data_callback(const bme68x_data data, const bsecOutputs outputs, Bsec2 bsec) {
@@ -311,7 +302,7 @@ void bsec_data_callback(const bme68x_data data, const bsecOutputs outputs, Bsec2
     } else {
         global_sensor_data.is_raining = false;
     }
-    
+
     global_sensor_data.light_level = analogRead(LIGHT_SENSOR_PIN);
 
     if (global_sensor_data.iaq_accuracy < 3) {
@@ -320,20 +311,19 @@ void bsec_data_callback(const bme68x_data data, const bsecOutputs outputs, Bsec2
 
     print_sensor_data(global_sensor_data);
     print_system_status(global_system_status);
-    draw_ui();  // ← refresh display with latest data
+    draw_ui();
 }
 
 void checkBsecStatus(Bsec2 bsec) {
     if (bsec.status < BSEC_OK) {
         Serial.println("BSEC error code : " + String(bsec.status));
-        // errLeds(); /* Halt in case of failure */
+
     } else if (bsec.status > BSEC_OK) {
         Serial.println("BSEC warning code : " + String(bsec.status));
     }
 
     if (bsec.sensor.status < BME68X_OK) {
         Serial.println("BME68X error code : " + String(bsec.sensor.status));
-        // errLeds(); /* Halt in case of failure */
     } else if (bsec.sensor.status > BME68X_OK) {
         Serial.println("BME68X warning code : " + String(bsec.sensor.status));
     }
@@ -408,7 +398,6 @@ void init_rtc() {
             rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
         }
 
-        // Sync DS1307 time to ESP32 internal clock
         DateTime now = rtc.now();
         struct timeval tv = {now.unixtime(), 0};
         settimeofday(&tv, NULL);
@@ -421,7 +410,7 @@ void init_rtc() {
     }
 }
 
-void display_setup() {
+void init_display() {
     if (!display.begin(SCREEN_ADDR, true)) {
         Serial.println("Display Init failed!");
         global_system_status.display_avalible = false;
@@ -450,13 +439,11 @@ void setup() {
         global_system_status.display_active = true;
     }
 
-    
-
     pinMode(RAIN_SENSOR_ANALOG_PIN, INPUT);
     pinMode(RAIN_SENSOR_DIGITAL_PIN, INPUT);
 
     pinMode(BACK_BTN_PIN, INPUT_PULLUP);
-    pinMode(UP_BTN_PIN, INPUT_PULLUP);  // GPIO 36 - input only
+    pinMode(UP_BTN_PIN, INPUT_PULLUP);
     pinMode(DOWN_BTN_PIN, INPUT_PULLUP);
 
     attachInterrupt(digitalPinToInterrupt(BACK_BTN_PIN), on_back_btn_pressed, FALLING);
@@ -466,14 +453,13 @@ void setup() {
     init_rtc();
     init_sd_card();
 
-    // Always init timer so button ISR can use it regardless of wakeup cause
     display_timer = timerBegin(0, 80, true);
     timerAttachInterrupt(display_timer, &on_display_timer, true);
     timerAlarmWrite(display_timer, 30000000, false);
 
     if (global_system_status.display_active) {
-        display_setup();
-        timerAlarmEnable(display_timer);  // start 30s countdown
+        init_display();
+        timerAlarmEnable(display_timer);
     }
 
     init_bme680();
@@ -487,7 +473,7 @@ void loop() {
         back_btn_pressed = false;
         global_system_status.display_active = true;
         if (!global_system_status.display_avalible) {
-            display_setup();
+            init_display();
         } else {
             display.oled_command(SH110X_DISPLAYON);
         }
@@ -507,12 +493,10 @@ void loop() {
         }
 
         go_to_sleep();
-
-    } else {
-        if (global_sensor_data.iaq_accuracy > 2) {
-            burn_in_mode = false;
-            global_system_status.in_ulp_mode = true;
-        }
+    }
+    if (global_sensor_data.iaq_accuracy > 2) {
+        global_system_status.burn_in_mode = false;
+        global_system_status.in_ulp_mode = true;
     }
 
     if (!envSensor.run()) {
