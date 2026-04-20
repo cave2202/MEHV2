@@ -157,34 +157,40 @@ void draw_ui() {
     switch (current_screen) {
         case SCREEN_DASHBOARD:
             display.setCursor(0, 0);
-            display.println("Screen 1: Messwerte");
-            display.printf("Temp: %.2f\n", global_sensor_data.c_temperature);
-            display.printf("Pressure: %.2f\n", global_sensor_data.raw_pressure);
-            display.printf("Humidity: %.2f\n", global_sensor_data.c_humidity);
-            display.printf("IAQ: %.2f\n", global_sensor_data.iaq);
-            display.printf("ACC: %u\n", global_sensor_data.iaq_accuracy);
+            display.println("== Messwerte ==");
+            display.printf("Temp     :%.2fC\n", global_sensor_data.c_temperature);
+            display.printf("L. Druck :%.2fhPa\n", global_sensor_data.raw_pressure);
+            display.printf("L. F.    :%.2f%%\n", global_sensor_data.c_humidity);
+            display.printf("IAQ      :%.2f\n", global_sensor_data.iaq);
+            display.printf("ACC      :%d/3\n", global_sensor_data.iaq_accuracy);
             display.printf("Light Level: %u\n", global_sensor_data.light_level);
             break;
-
-        case SCREEN_DETAILS:
+            
+            case SCREEN_DETAILS:
             display.setCursor(0, 0);
-            display.printf("Pres:  %.1f hPa\n", global_sensor_data.raw_pressure / 100.0f);
-            display.printf("bVOC:  %.2f ppm\n", global_sensor_data.bVoc);
-            display.printf("Rain:  %s\n", global_sensor_data.is_raining ? "yes" : "no");
+            display.println("== Messwerte 2 ==");
+            display.printf("CO2   :%.2f ppm\n", global_sensor_data.co2_equivalent);
+            display.printf("bVOC  :%.2f ppm\n", global_sensor_data.bVoc);
+            display.printf("Regen :%s\n", global_sensor_data.is_raining ? "yes" : "no");
+            if (global_sensor_data.is_raining) {
+                display.printf("Regen volt.:  %f\n", global_sensor_data.raing_voltage);
+            }
+
+            display.setCursor(0, 56);
+
+            break;
+            
+            case SCREEN_SETTINGS:
+            display.setCursor(0, 0);
+            display.println("== Sys-Status ==");
+            display.printf("SD     :%s\n", global_system_status.sd_card_avalible ? "ok" : "none");
+            display.printf("RTC    :%s\n", global_system_status.rtc_avalible ? "ok" : "none");
+            display.printf("Boot   :%d\n", bootCount);
+            display.printf("Sample Mode: %s\n", global_system_status.in_ulp_mode ? "ULP" : "LP");
+            display.printf("Burn in Mode: %s\n", global_system_status.burn_in_mode ? "YES" : "NO");
             display.printf("RunIn: %s\n", global_sensor_data.bme680_run_in ? "done" : "...");
             display.setCursor(0, 56);
-            display.print("BACK=dashboard");
-            break;
 
-        case SCREEN_SETTINGS:
-            display.setCursor(0, 0);
-            display.println("== Settings ==");
-            display.printf("SD:  %s\n", global_system_status.sd_card_avalible ? "ok" : "none");
-            display.printf("RTC: %s\n", global_system_status.rtc_avalible ? "ok" : "none");
-            display.printf("Boot: %d\n", bootCount);
-            display.printf("Sample Mode: %s\n", global_system_status.in_ulp_mode ? "ULP" : "LP");
-            display.setCursor(0, 56);
-            display.print("BACK=dashboard");
             break;
     }
 
