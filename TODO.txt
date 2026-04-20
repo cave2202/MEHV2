@@ -1,10 +1,10 @@
 - [x] Speicherung der Daten auf der SD Karte
     - [x] Wenn die Datei noch nich exisitert, Erstelle sie mit den Passenden Headern
 - [x] Speichern des BME Zustands auf dem EEProm
-- [ ] Display
+- [x] Display
 - [x] Regensensor
-- [ ] Licht sensor
-- [ ] Batterie Monitor
-- [ ] Schaltplan Überarbeiten
+- [x] Licht sensor
+- [x] Batterie Monitor
+- [x] Schaltplan Überarbeiten
 - [ ] Readme Schreiben
     - [ ] Problem mit IntelHex Python Modul beschreiben
